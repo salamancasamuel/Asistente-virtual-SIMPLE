@@ -1,0 +1,167 @@
+import speech_recognition as sr
+import datetime
+import pyttsx3
+import pywhatkit
+import wikipedia
+import webbrowser
+import time
+from sympy import symbols, Eq, solve, sympify
+
+
+name = 'tu nombre favorito'
+
+engine = pyttsx3.init()
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[0].id)
+engine.setProperty('rate', 150)
+
+wikipedia.set_lang("es")
+
+recognizer = sr.Recognizer()
+
+
+def talk(text):
+    print(f"Asistente: {text}")
+    engine.say(text)
+    engine.runAndWait()
+
+
+def listen_command():
+    try:
+        with sr.Microphone() as source:
+            print("Escuchando comando...")
+            audio = recognizer.listen(source, phrase_time_limit=5)
+            rec = recognizer.recognize_google(audio, language="es-ES").lower()
+            print(f"Usuario: {rec}")
+            return rec
+    except sr.UnknownValueError:
+        talk("No entendí, ¿puedes repetir?")
+        return ""
+    except Exception as e:
+        print(f"Error: {e}")
+        return ""
+
+
+def wait_for_activation():
+    while True:
+        try:
+            with sr.Microphone() as source:
+                print("Esperando activación...")
+                audio = recognizer.listen(source, phrase_time_limit=3)
+                rec = recognizer.recognize_google(
+                    audio, language="es-ES").lower()
+                print(f"Escuchado: {rec}")
+                if name in rec or f"oye {name}" in rec:
+                    talk("¿Sí?")
+                    return
+        except sr.UnknownValueError:
+            continue
+        except Exception as e:
+            print(f"Error en activación: {e}")
+
+
+def limpiar_expresion(texto):
+    texto = texto.replace("más", "+")
+    texto = texto.replace("menos", "-")
+    texto = texto.replace("por", "*")
+    texto = texto.replace("entre", "/")
+    texto = texto.replace("dividido", "/")
+    texto = texto.replace("igual a", "=")
+    texto = texto.replace("es igual a", "=")
+    texto = texto.replace("igual", "=")
+    texto = texto.replace("x", "*") if "x" not in texto else texto
+    return texto
+
+
+def run():
+    rec = listen_command()
+
+    if 'abre' in rec or 'abrir' in rec or 'entra' in rec:
+        sites = {
+            'google': 'https://www.google.com',
+            'instagram': 'https://www.instagram.com',
+            'tiktok': 'https://www.tiktok.com',
+            'inteligenciaartificial': 'https://chatgpt.com/'
+        }
+        for site in sites:
+            if site in rec:
+                talk(f"Abriendo {site}")
+                webbrowser.open(sites[site])
+                return
+
+    elif 'busca en google' in rec:
+        try:
+            query = rec.replace('busca en google', '').strip()
+            if query:
+                url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+                talk(f"Buscando {query} en Google")
+                webbrowser.open(url)
+            else:
+                talk("¿Qué quieres que busque?")
+        except Exception as e:
+            talk("Hubo un problema al hacer la búsqueda.")
+        talk("No reconocí el sitio que quieres abrir.")
+
+    elif 'resuelve' in rec or 'calcula' in rec or 'cuánto vale' in rec:
+        try:
+            expresion = rec.replace('resuelve', '').replace(
+                'calcula', '').replace('cuánto vale', '')
+            expresion = limpiar_expresion(expresion)
+
+            if '=' in expresion:
+                x = symbols('x')
+                lados = expresion.split('=')
+                eq = Eq(sympify(lados[0]), sympify(lados[1]))
+                soluciones = solve(eq, x)
+                if soluciones:
+                    talk(f"La solución es x = {soluciones[0]}")
+                else:
+                    talk("No encontré una solución.")
+            else:
+                resultado = sympify(expresion)
+                talk(f"El resultado es {resultado}")
+        except Exception as e:
+            talk("No pude resolver esa expresión.")
+
+    elif 'resuelve' in rec or 'calcula' in rec or 'cuánto es' in rec:
+        try:
+
+            expresion = rec.replace('resuelve', '').replace(
+                'calcula', '').replace('cuánto es', '')
+            expresion = limpiar_expresion(expresion)
+            resultado = sympify(expresion)
+            talk(f"El resultado es {resultado}")
+        except Exception as e:
+            talk("No pude resolver esa expresión matemática.")
+
+    elif 'reproduce' in rec:
+        music = rec.replace('reproduce', '')
+        talk('Reproduciendo ' + music)
+        pywhatkit.playonyt(music)
+
+    elif 'hora' in rec:
+        hora = datetime.datetime.now().strftime('%I:%M %p')
+        talk("Son las " + hora)
+
+    elif 'busca' in rec:
+        orden = rec.replace('busca', '')
+        try:
+            info = wikipedia.summary(orden, sentences=2)
+            talk(info)
+        except wikipedia.exceptions.DisambiguationError:
+            talk("Esa búsqueda es ambigua, ¿puedes ser más específico?")
+        except Exception as e:
+            talk("No encontré información sobre eso.")
+
+    elif 'salir' in rec or 'adiós' in rec or 'apaga el sistema' in rec or 'apágate' in rec:
+        talk("Hasta luego")
+        exit()
+
+    else:
+        talk("No te entendí, ¿puedes repetirlo?")
+
+
+while True:
+    wait_for_activation()
+    run()
+    time.sleep(1)
